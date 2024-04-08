@@ -3,11 +3,13 @@ from yacs.config import CfgNode
 import torch
 from ltc.model.ms_tcn import MultiStageModel
 from ltc.model.ltcontext import LTC
+from ltc.model.i3d import I3D
 
 # Supported models
 _MODEL_TYPES = {
     "ms-tcn": MultiStageModel,
     "ltc": LTC,
+    "i3d": I3D
 }
 
 

@@ -61,7 +61,7 @@ class SlotAttention(nn.Module):
         inputs = self.LN(inputs)
         inputs = self.FC1(inputs)
         inputs = F.relu(inputs)
-        inputs = self.FC2(inputs)
+        inputs = self.FC2(inputs)*masks
 
         inputs = self.norm_input(inputs)   
         k, v = self.to_k(inputs), self.to_v(inputs)
@@ -69,10 +69,10 @@ class SlotAttention(nn.Module):
         q = self.to_q(slots)
 
         dots = torch.einsum('bid,bjd->bij', q, k) * self.scale
+        dots = dots/0.2
         attn_ori = dots.softmax(dim=1) + self.eps
-        attn = attn_ori / attn_ori.sum(dim=-1, keepdim=True)
-        # attn = attn_ori / attn_ori.sum(dim=-1, keepdim=True)
-        update = torch.einsum('bjd,bij->bid', v, attn)
+        # attn = attn_ori / attn_ori.sum(dim=-1, keepdim=True) #[b, n_slot, L]
+        update = torch.einsum('bjd,bij->bid', v, attn_ori)
 
         slots = self.gru(
             update.reshape(-1, d),
@@ -112,19 +112,17 @@ class Decoder(nn.Module):
 
 
 class SlotAttentionModule(nn.Module):
-    def __init__(self, num_slots, hid_dim, output_channel = 3):
+    def __init__(self, num_slots, hid_dim, out_dim=48):
         """Builds the Slot Attention-based auto-encoder.
         Args:
         resolution: Tuple of integers specifying width and height of input image.
         num_slots: Number of slots in Slot Attention.
         hid_dim: dimension for ConvGRU and slot attention
-        dresolution: downsampled resolution --> resnet 18 downsampled with a factor of 4
         """
         super().__init__()
         self.hid_dim = hid_dim
 
         self.num_slots = num_slots
-        self.output_channel = output_channel
 
         # self.decoder = Decoder(self.hid_dim, self.resolution, self.output_channel)
 
@@ -137,7 +135,7 @@ class SlotAttentionModule(nn.Module):
             eps = 1e-8, 
             hidden_dim = hid_dim)
 
-        self.decoder = Decoder(hid_dim, num_slots)
+        self.decoder = Decoder(hid_dim, out_dim)
         
     def forward(self, seq, masks=None):
         # `image` has shape: [batch_size, num_channels, width, height].
@@ -159,7 +157,8 @@ class SlotAttentionModule(nn.Module):
         masks = masks.permute(0,2,1)
         # recons = self.decoder(slots_combine)
         # `recons` has shape: [bs, n_frames, 3, H//4, W // 4]
-        return attn_masks.view(bs, self.num_slots, L), slots*masks
+
+        return attn_masks.view(bs, self.num_slots, L), slots
 
     def action_slot_forward(self, seq, masks=None):
         bs, dim, L = seq.shape

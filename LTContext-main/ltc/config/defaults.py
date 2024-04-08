@@ -87,6 +87,8 @@ _C.MODEL.INPUT_DIM = 2048
 # name of the loss, options: ['ce_mse']
 _C.MODEL.LOSS_FUNC = "ce_mse"
 
+_C.MODEL.MULTI_LOSS = True
+
 # ignore idx for cross entropy,
 # the value to be used for padding targets
 _C.MODEL.PAD_IGNORE_IDX = -100

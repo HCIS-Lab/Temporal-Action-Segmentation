@@ -57,10 +57,10 @@ class SingleStageModel(nn.Module):
 
         if num_action_slot > 0:
             self.num_action_slot = num_action_slot
-            self.action_slot = SlotAttentionModule(num_action_slot, num_f_maps)
+            self.action_slot = SlotAttentionModule(num_action_slot, num_f_maps, num_classes)
         if num_progress_slots > 0:
             self.num_progress_slots = num_progress_slots
-            self.progress_slot = SlotAttentionModule(num_progress_slots, num_f_maps)
+            self.progress_slot = SlotAttentionModule(num_progress_slots, num_f_maps, num_classes)
 
     def forward(self, x, masks):
         out = self.conv_1x1(x)
@@ -69,10 +69,11 @@ class SingleStageModel(nn.Module):
         if self.num_action_slot > 0:
             action_attn, out = self.action_slot.action_slot_forward(out, masks)
         if self.num_progress_slots > 0:
-            progress_attn, progress_out = self.progress_slot(out, masks)
-            out = out + progress_out
-        if not self.num_action_slot > 0:
-            out = self.conv_out(out) * masks[:, 0:1, :]
+            progress_attn, progress_out = self.progress_slot.action_slot_forward(out, masks)
+            out = ((self.conv_out(out) + progress_out)/2)
+        if not self.num_action_slot > 0 and not self.num_progress_slots >0:
+            out = self.conv_out(out) 
+        out = out * masks[:, 0:1, :]
         return out
 
 

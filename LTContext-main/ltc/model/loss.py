@@ -22,6 +22,7 @@ class CEplusMSE(nn.Module):
         self.mse_fraction = cfg.MODEL.MSE_LOSS_FRACTION
         self.mse_clip_val = cfg.MODEL.MSE_LOSS_CLIP_VAL
         self.num_classes = cfg.MODEL.NUM_CLASSES
+        self.multi_loss = cfg.MODEL.MULTI_LOSS
 
     def forward(self, logits: torch.Tensor, targets: torch.Tensor) -> Dict:
         """
@@ -30,12 +31,22 @@ class CEplusMSE(nn.Module):
         :return:
         """
         loss_dict = {"loss": 0.0, "loss_ce": 0.0, "loss_mse": 0.0}
-        for p in logits:
-            loss_dict['loss_ce'] += self.ce(rearrange(p, "b n_classes seq_len -> (b seq_len) n_classes"),
-                                            rearrange(targets, "b seq_len -> (b seq_len)"))
+        if self.multi_loss:
+            for p in logits:
+                loss_dict['loss_ce'] += self.ce(rearrange(p, "b n_classes seq_len -> (b seq_len) n_classes"),
+                                                rearrange(targets, "b seq_len -> (b seq_len)"))
 
-            loss_dict['loss_mse'] += torch.mean(torch.clamp(self.mse(F.log_softmax(p[:, :, 1:], dim=1),
-                                                                     F.log_softmax(p.detach()[:, :, :-1], dim=1)),
+                loss_dict['loss_mse'] += torch.mean(torch.clamp(self.mse(F.log_softmax(p[:, :, 1:], dim=1),
+                                                                         F.log_softmax(p.detach()[:, :, :-1], dim=1)),
+                                                                min=0,
+                                                                max=self.mse_clip_val))
+        else:
+
+            loss_dict['loss_ce'] += self.ce(rearrange(logits, "b n_classes seq_len -> (b seq_len) n_classes"),
+                                                rearrange(targets, "b seq_len -> (b seq_len)"))
+
+            loss_dict['loss_mse'] += torch.mean(torch.clamp(self.mse(F.log_softmax(logits[:, :, 1:], dim=1),
+                                                                     F.log_softmax(logits.detach()[:, :, :-1], dim=1)),
                                                             min=0,
                                                             max=self.mse_clip_val))
 
@@ -59,6 +70,7 @@ class CEplusMSE_SlotBCE(nn.Module):
         self.mse_clip_val = cfg.MODEL.MSE_LOSS_CLIP_VAL
         self.num_classes = cfg.MODEL.NUM_CLASSES
         self.cfg = cfg
+        self.multi_loss = cfg.MODEL.MULTI_LOSS
     def forward(self, logits: torch.Tensor, targets: torch.Tensor) -> Dict:
         """
         :param logits: [n_stages, batch_size, n_classes, seq_len]
@@ -66,12 +78,21 @@ class CEplusMSE_SlotBCE(nn.Module):
         :return:
         """
         loss_dict = {"loss": 0.0, "loss_ce": 0.0, "loss_mse": 0.0}
-        for p in logits:
-            loss_dict['loss_ce'] += self.ce(rearrange(p, "b n_classes seq_len -> (b seq_len) n_classes"),
+        if self.multi_loss:
+            for p in logits:
+                loss_dict['loss_ce'] += self.ce(rearrange(p, "b n_classes seq_len -> (b seq_len) n_classes"),
+                                                rearrange(targets, "b seq_len -> (b seq_len)"))
+
+                loss_dict['loss_mse'] += torch.mean(torch.clamp(self.mse(F.log_softmax(p[:, :, 1:], dim=1),
+                                                                         F.log_softmax(p.detach()[:, :, :-1], dim=1)),
+                                                                min=0,
+                                                                max=self.mse_clip_val))
+        else:
+            loss_dict['loss_ce'] += self.ce(rearrange(logits, "b n_classes seq_len -> (b seq_len) n_classes"),
                                             rearrange(targets, "b seq_len -> (b seq_len)"))
 
-            loss_dict['loss_mse'] += torch.mean(torch.clamp(self.mse(F.log_softmax(p[:, :, 1:], dim=1),
-                                                                     F.log_softmax(p.detach()[:, :, :-1], dim=1)),
+            loss_dict['loss_mse'] += torch.mean(torch.clamp(self.mse(F.log_softmax(logits[:, :, 1:], dim=1),
+                                                                     F.log_softmax(logits.detach()[:, :, :-1], dim=1)),
                                                             min=0,
                                                             max=self.mse_clip_val))
         # seq_len = attn_mask.shape[1]
